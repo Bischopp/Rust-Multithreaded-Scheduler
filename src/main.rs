@@ -60,7 +60,7 @@ fn main() {
         thread::sleep(Duration::from_secs(1)); //synchronous
     }
 
-    let result = *result_lock.read().unwrap(); //
+    let result = *result_lock.read().unwrap(); 
 
     if let Some(result) = result {
         println!("The {}th Fibonacci number is: {}", n, result);

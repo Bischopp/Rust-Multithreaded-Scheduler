@@ -16,7 +16,7 @@ pub trait TaskGroup: Send + Sync + Sized + 'static {
     fn execute(&self, task_id: Self::TaskId);
 }
 
-fn schedule_tasks_local<T: TaskGroup>(task_group: &Arc<T>, interval: Duration, handle: &Handle) {
+fn schedule_tasks_local<T: TaskGroup>(task_group: &Arc<T>, interval: Duration, handle: &Handle) { // for a single thread
     let tasks = task_group.get_tasks();
     if tasks.is_empty() {
         return
@@ -33,7 +33,7 @@ fn schedule_tasks_local<T: TaskGroup>(task_group: &Arc<T>, interval: Duration, h
     }
 }
 
-fn schedule_tasks_remote<T: TaskGroup>(task_group: &Arc<T>, interval: Duration, remote: &Remote, pool: &CpuPool) {
+fn schedule_tasks_remote<T: TaskGroup>(task_group: &Arc<T>, interval: Duration, remote: &Remote, pool: &CpuPool) { // for a whole pool of threads
     let tasks = task_group.get_tasks();
     if tasks.is_empty() {
         return

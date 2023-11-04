@@ -13,27 +13,27 @@ use std::time::{Instant, Duration};
 
 
 #[derive(Clone)]
-pub struct TaskHandle {
+pub struct TaskHandle { //monitors if thread is stopped
     should_stop: Arc<AtomicBool>,
 }
 
-impl TaskHandle {
+impl TaskHandle { // constructor
     fn new() -> TaskHandle {
         TaskHandle { should_stop: Arc::new(AtomicBool::new(false)) }
     }
 
-    pub fn stop(&self) {
+    pub fn stop(&self) { //termination for a thread? ordering; relaxed no specific memory ordering constraints.
         self.should_stop.store(true, Ordering::Relaxed);
     }
 
-    pub fn stopped(&self) -> bool {
+    pub fn stopped(&self) -> bool { //checks if thread execution has stopped
         self.should_stop.load(Ordering::Relaxed)
     }
 }
 
 fn fixed_interval_loop<F>(scheduled_fn: F, interval: Duration, handle: &Handle, task_handle: TaskHandle)
     where F: Fn(&Handle) + Send + 'static
-{
+{//fixed_interval_loop is a recursive function designed to repeatedly execute a provided function at fixed intervals
     if task_handle.stopped() {
         return;
     }
@@ -41,7 +41,7 @@ fn fixed_interval_loop<F>(scheduled_fn: F, interval: Duration, handle: &Handle, 
     scheduled_fn(handle);
     let execution = start_time.elapsed();
     let next_iter_wait = if execution >= interval {
-        Duration::from_secs(0)
+        Duration::from_secs(0) //If the execution time exceeds the specified interval, no wait time is needed. makes sure nothing takes infinite time.
     } else {
         interval - execution
     };
@@ -55,9 +55,9 @@ fn fixed_interval_loop<F>(scheduled_fn: F, interval: Duration, handle: &Handle, 
 }
 
 fn calculate_delay(interval: Duration, execution: Duration, delay: Duration) -> (Duration, Duration) {
-    if execution >= interval {
+    if execution >= interval { 
         (Duration::from_secs(0), delay + execution - interval)
-    } else {
+    } else {// handles the case where there is still time remaining in the current interval
         let wait_gap = interval - execution;
         if delay == Duration::from_secs(0) {
             (wait_gap, Duration::from_secs(0))
@@ -71,7 +71,7 @@ fn calculate_delay(interval: Duration, execution: Duration, delay: Duration) -> 
 
 fn fixed_rate_loop<F>(scheduled_fn: F, interval: Duration, handle: &Handle, delay: Duration, task_handle: TaskHandle)
     where F: Fn(&Handle) + Send + 'static
-{
+{//fixed_rate_loop is a function that schedules repeated execution of a provided function at a fixed rate, using the specified interval and initial delay
     if task_handle.stopped() {
         return;
     }
@@ -85,17 +85,17 @@ fn fixed_rate_loop<F>(scheduled_fn: F, interval: Duration, handle: &Handle, dela
             fixed_rate_loop(scheduled_fn, interval, &handle_clone, updated_delay, task_handle);
             Ok::<(), ()>(())
         });
-    handle.spawn(t);
+    handle.spawn(t);//it schedules the Timeout by calling spawn on the handle. This means that when the Timeout fires, it will trigger the execution of the then closure, effectively scheduling the next iteration.
 }
 
 
-struct CoreExecutorInner {
+struct CoreExecutorInner { //single core executor 
     remote: Remote,
     termination_sender: Option<Sender<()>>,
     thread_handle: Option<JoinHandle<Result<(), Canceled>>>,
 }
 
-impl Drop for CoreExecutorInner {
+impl Drop for CoreExecutorInner { 
     fn drop(&mut self) {
         let _ = self.termination_sender.take().unwrap().send(());
         let _ = self.thread_handle.take().unwrap().join();
@@ -117,7 +117,7 @@ impl CoreExecutor {
         CoreExecutor::with_name("core_executor")
     }
 
-    pub fn with_name(thread_name: &str) -> Result<CoreExecutor, io::Error> {
+    pub fn with_name(thread_name: &str) -> Result<CoreExecutor, io::Error> { //naming and initialization of thread and sets up communication channels
         let (termination_tx, termination_rx) = channel();
         let (core_tx, core_rx) = channel();
         let thread_handle = thread::Builder::new()
@@ -139,7 +139,7 @@ impl CoreExecutor {
     }
 
     pub fn schedule_fixed_interval<F>(&self, initial: Duration, interval: Duration, scheduled_fn: F) -> TaskHandle
-        where F: Fn(&Handle) + Send + 'static
+        where F: Fn(&Handle) + Send + 'static //basically generates the time slices and the order of execution for the processes. It also determines when the next execution will take place.
     {
         let task_handle = TaskHandle::new();
         let task_handle_clone = task_handle.clone();
@@ -203,8 +203,8 @@ impl ThreadPoolExecutor {
     pub fn schedule_fixed_rate<F>(&self, initial: Duration, interval: Duration, scheduled_fn: F) -> TaskHandle
         where F: Fn(&Remote) + Send + Sync + 'static
     {
-        let pool_clone = self.pool.clone();
-        let arc_fn = Arc::new(scheduled_fn);
+        let pool_clone = self.pool.clone(); //deep copy for ownership
+        let arc_fn = Arc::new(scheduled_fn); 
         self.executor.schedule_fixed_interval(
             initial,
             interval,
